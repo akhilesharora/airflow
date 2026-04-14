@@ -32,6 +32,7 @@ from functools import partial
 from botocore.exceptions import ClientError
 
 from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
+from airflow.providers.amazon.aws.hooks.sts import StsHook
 from airflow.utils import yaml
 
 DEFAULT_PAGINATION_TOKEN = ""
@@ -619,11 +620,11 @@ class EksHook(AwsBaseHook):
         cluster_cert = cluster["cluster"]["certificateAuthority"]["data"]
         cluster_ep = cluster["cluster"]["endpoint"]
 
-        # Construct regional STS URL directly to avoid modifying process-global os.environ.
-        # EKS token generation requires a regional STS endpoint.
-        sts_url = (
-            f"https://sts.{session.region_name}.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15"
-        )
+        os.environ["AWS_STS_REGIONAL_ENDPOINTS"] = "regional"
+        try:
+            sts_url = f"{StsHook(region_name=session.region_name).conn_client_meta.endpoint_url}/?Action=GetCallerIdentity&Version=2011-06-15"
+        finally:
+            del os.environ["AWS_STS_REGIONAL_ENDPOINTS"]
 
         cluster_config = {
             "apiVersion": "v1",
@@ -711,11 +712,18 @@ class EksHook(AwsBaseHook):
         cluster_cert = cluster["cluster"]["certificateAuthority"]["data"]
         cluster_ep = cluster["cluster"]["endpoint"]
 
-        # Construct regional STS URL directly to avoid modifying process-global os.environ.
-        # EKS token generation requires a regional STS endpoint.
-        sts_url = (
-            f"https://sts.{session.region_name}.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15"
-        )
+        # Force regional STS endpoint resolution via StsHook. The env var is needed because
+        # some regions default to global endpoints, but EKS token generation requires regional.
+        # Save/restore to avoid clobbering a value set by the environment.
+        original_sts_env = os.environ.get("AWS_STS_REGIONAL_ENDPOINTS")
+        os.environ["AWS_STS_REGIONAL_ENDPOINTS"] = "regional"
+        try:
+            sts_url = f"{StsHook(region_name=session.region_name).conn_client_meta.endpoint_url}/?Action=GetCallerIdentity&Version=2011-06-15"
+        finally:
+            if original_sts_env is None:
+                del os.environ["AWS_STS_REGIONAL_ENDPOINTS"]
+            else:
+                os.environ["AWS_STS_REGIONAL_ENDPOINTS"] = original_sts_env
 
         # Fetch the access token directly
         try:

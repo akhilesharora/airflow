@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import stat
@@ -43,8 +44,9 @@ from airflow.providers.amazon.aws.triggers.eks import (
 from airflow.providers.amazon.aws.utils import validate_execute_complete_event
 from airflow.providers.amazon.aws.utils.mixins import aws_template_fields
 from airflow.providers.amazon.aws.utils.waiter_with_logging import wait
+from airflow.providers.cncf.kubernetes.triggers.pod import ContainerState, KubernetesPodTrigger
 from airflow.providers.cncf.kubernetes.utils.pod_manager import OnFinishAction
-from airflow.providers.common.compat.sdk import AirflowException, conf
+from airflow.providers.common.compat.sdk import AirflowException, AirflowNotFoundException, BaseHook, conf
 
 try:
     from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
@@ -1193,14 +1195,6 @@ class EksPodOperator(KubernetesPodOperator):
             eks_cluster_name=self.cluster_name,
             pod_namespace=self.namespace,
         )
-
-        # Replicate the parent's invoke_defer_method logic with our pre-built config_dict.
-        # Imports are local because this method mirrors the parent class implementation
-        # and these dependencies are only needed here, not at module level.
-        import datetime
-
-        from airflow.providers.cncf.kubernetes.triggers.pod import ContainerState, KubernetesPodTrigger
-        from airflow.providers.common.compat.sdk import AirflowNotFoundException, BaseHook
 
         connection_extras = None
         if self.kubernetes_conn_id:

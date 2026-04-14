@@ -1273,10 +1273,12 @@ class TestEksHook:
             if expected_region_args:
                 assert expected_region_args in command_arg
 
+    @mock.patch("airflow.providers.amazon.aws.hooks.eks.StsHook")
     @mock.patch("airflow.providers.amazon.aws.hooks.base_aws.AwsBaseHook.conn")
     @mock.patch("airflow.providers.amazon.aws.utils.eks_get_token.fetch_access_token_for_cluster")
-    def test_generate_config_dict_for_deferral(self, mock_fetch_token, mock_conn):
+    def test_generate_config_dict_for_deferral(self, mock_fetch_token, mock_conn, mock_sts_hook):
         """Test that generate_config_dict_for_deferral creates a config with embedded token."""
+        mock_sts_hook.return_value.conn_client_meta.endpoint_url = "https://sts.us-west-2.amazonaws.com"
         mock_conn.describe_cluster.return_value = {
             "cluster": {
                 "certificateAuthority": {"data": "test-cert-data"},
@@ -1346,10 +1348,12 @@ class TestEksHook:
                 pod_namespace="test-namespace",
             )
 
+    @mock.patch("airflow.providers.amazon.aws.hooks.eks.StsHook")
     @mock.patch("airflow.providers.amazon.aws.hooks.base_aws.AwsBaseHook.conn")
     @mock.patch("airflow.providers.amazon.aws.utils.eks_get_token.fetch_access_token_for_cluster")
-    def test_generate_config_dict_for_deferral_empty_token(self, mock_fetch_token, mock_conn):
+    def test_generate_config_dict_for_deferral_empty_token(self, mock_fetch_token, mock_conn, mock_sts_hook):
         """Test that generate_config_dict_for_deferral raises error when token is empty."""
+        mock_sts_hook.return_value.conn_client_meta.endpoint_url = "https://sts.us-west-2.amazonaws.com"
         mock_conn.describe_cluster.return_value = {
             "cluster": {
                 "certificateAuthority": {"data": "test-cert-data"},
@@ -1367,12 +1371,16 @@ class TestEksHook:
                 pod_namespace="test-namespace",
             )
 
+    @mock.patch("airflow.providers.amazon.aws.hooks.eks.StsHook")
     @mock.patch("airflow.providers.amazon.aws.hooks.base_aws.AwsBaseHook.conn")
     @mock.patch("airflow.providers.amazon.aws.utils.eks_get_token.fetch_access_token_for_cluster")
-    def test_generate_config_dict_for_deferral_token_fetch_failure(self, mock_fetch_token, mock_conn):
+    def test_generate_config_dict_for_deferral_token_fetch_failure(
+        self, mock_fetch_token, mock_conn, mock_sts_hook
+    ):
         """Test that generate_config_dict_for_deferral raises clear error on token fetch failure."""
         from botocore.exceptions import BotoCoreError
 
+        mock_sts_hook.return_value.conn_client_meta.endpoint_url = "https://sts.us-west-2.amazonaws.com"
         mock_conn.describe_cluster.return_value = {
             "cluster": {
                 "certificateAuthority": {"data": "test-cert-data"},
